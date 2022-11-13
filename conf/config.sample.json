@@ -1,0 +1,58 @@
+{
+  "sql_directory": "../sql",
+  "template_directory": "../template",
+  "output_directory": "../data",
+  "smtp_relay": {
+    "host": "smtp.gmail.com",
+    "port": "587",
+    "username": "",
+    "password": "",
+    "starttls": true
+  },
+  "datasources": {
+    "worker1": {
+      "hostname": "localhost",
+      "username": "user",
+      "password": "",
+      "port": 3306,
+      "database": "test"
+    },
+    "worker2": {
+      "hostname": "",
+      "username": "",
+      "password": "",
+      "port": 3306,
+      "database": ""
+    },
+    "worker3": {
+      "hostname": "",
+      "username": "",
+      "password": "",
+      "port": 3306,
+      "database": ""
+    }
+  },
+  "queries": {
+    "all_events_last_24h": {
+      "query_file": "family.sql",
+      "sources": ["worker1", "worker1"],
+      "fixfields": ["author"],
+      "sort_field": "rfam_id",
+      "output_type": "xlsx",
+      "excel_options": {
+        "template_file": "template.xlsx",
+        "sheet_name": "Events",
+        "startrow": 6
+      },
+      "output_filename": "report",
+      "emails": {
+        "to": "me@localhost",
+        "from": "you@localhost",
+        "subject": "Test output excel",
+        "body" : "here is your expected file"
+      }
+    }
+
+  }
+
+}
