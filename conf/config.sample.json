@@ -45,7 +45,7 @@
         "startrow": 6
       },
       "output_filename": "report",
-      "emails": {
+      "email": {
         "to": "me@localhost",
         "from": "you@localhost",
         "subject": "Test output excel",
