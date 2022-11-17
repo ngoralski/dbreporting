@@ -231,7 +231,6 @@ if "email" in config['queries'][args.query].keys():
         for toAddress in config['queries'][args.query]['email']['to']:
             emailTo.append(toAddress)
         # message["To"] = config['queries'][args.query]['email']['to']
-        print(f"this is a list")
 
     else:
         print(f"don't know what the 'to' field value ({config['queries'][args.query]['email']['to']}) " +
