@@ -46,8 +46,9 @@ parser.add_argument('--dryrun', help='do not create snow ticket just add a comme
 parser.add_argument('--debug', help='display more info', dest="debug", action="store_true")
 parser.add_argument('--version', help='display software info', dest="version", action="store_true")
 parser.add_argument('--query', help='run a predefined query (Mandatory)', dest="query", type=str)
-parser.add_argument('--filter', help='add an extra sql filter(Optional)', dest="filter", type=str)
-parser.add_argument('--limit_rows', help='limit the results returned (Optional)', dest="limit_rows", type=str)
+parser.add_argument('--filter', help='add an extra sql filter(Optional)', dest="filter", type=str, nargs="*")
+parser.add_argument('--subject', help='change the email subject(Optional)', dest="esubject", type=str, nargs="*")
+parser.add_argument('--limit_rows', help='limit the results returned (Optional)', dest="limit_rows", type=str,)
 parser.add_argument('--limit_start', help='return the results starting from(Optional but require --limit_rows)',
                     dest="limit_start", type=str)
 
@@ -82,8 +83,9 @@ if args.query not in config['queries'].keys():
 # Define input / output files, directories for templates and data results
 #
 outputDir = Path(config['output_directory'] + "/")
-outputFile = outputDir / (config['queries'][args.query]['output_filename'] + "." +
-                          config['queries'][args.query]['output_type'])
+outputFilename = config ['queries'][args.query]['output_filename'] + "." +\
+                 config['queries'][args.query]['output_type']
+outputFile = outputDir / outputFilename
 sqlFolder = Path(config['sql_directory'] + "/")
 sqlFile = open(sqlFolder / config['queries'][args.query]['query_file'], "r")
 sqlQuery = sqlFile.read()
@@ -98,14 +100,20 @@ if args.debug:
 df_all_rows = None
 
 if args.filter:
-    if sqlQuery.find('WHERE ') != -1:
+
+    addFilter = ' '.join(args.filter)
+
+    if args.debug:
+        print(f"Add this additionnal query option : {addFilter}")
+
+    if sqlQuery.find('WHERE') != -1:
         if args.debug:
             print("Found a WHERE condition in Query")
-        sqlQuery += f"\n  AND {args.filter}"
+        sqlQuery += f"\n  AND {addFilter}"
     else:
         if args.debug:
             print("Not found a WHERE condition in Query")
-        sqlQuery += f"WHERE {args.filter}"
+        sqlQuery += f"WHERE {addFilter}"
 
 if args.limit_rows:
     if args.limit_start:
@@ -211,8 +219,32 @@ if "email" in config['queries'][args.query].keys():
     #
     message = MIMEMultipart()
     message["From"] = config['queries'][args.query]['email']['from']
-    message["To"] = config['queries'][args.query]['email']['to']
-    message["Subject"] = config['queries'][args.query]['email']['subject']
+
+    if isinstance(config['queries'][args.query]['email']['to'], str):
+        message["To"] = config['queries'][args.query]['email']['to']
+        emailTo = config['queries'][args.query]['email']['to']
+    elif isinstance(config['queries'][args.query]['email']['to'], list):
+        # message["To"] = []
+        emailTo = []
+        message["To"] = ';'.join(config['queries'][args.query]['email']['to'])
+        # emailTo = ''.join(config['queries'][args.query]['email']['to'])
+        for toAddress in config['queries'][args.query]['email']['to']:
+            emailTo.append(toAddress)
+        # message["To"] = config['queries'][args.query]['email']['to']
+        print(f"this is a list")
+
+    else:
+        print(f"don't know what the 'to' field value ({config['queries'][args.query]['email']['to']}) " +
+              "from query {args.query} is, please correct it")
+        exit(10)
+
+    # message["To"] = config['queries'][args.query]['email']['to']
+    # message["To"] = emailTo
+    if args.esubject:
+        message["Subject"] = ' '.join(args.esubject)
+        outputFilename = ' '.join(args.esubject) + "." + config['queries'][args.query]['output_type']
+    else:
+        message["Subject"] = config['queries'][args.query]['email']['subject']
 
     # Not yet used
     # message["Bcc"] = receiver_email
@@ -220,9 +252,7 @@ if "email" in config['queries'][args.query].keys():
     # Add body to email
     message.attach(MIMEText(config['queries'][args.query]['email']['body'], "plain"))
 
-    filename = outputFile  # In same directory as script
-
-    with open(filename, "rb") as attachment:
+    with open(outputFile, "rb") as attachment:
         part = MIMEBase("application", "octet-stream")
         part.set_payload(attachment.read())
 
@@ -230,7 +260,7 @@ if "email" in config['queries'][args.query].keys():
 
     part.add_header(
         "Content-Disposition",
-        f"attachment; filename= {filename}",
+        f"attachment; filename= {outputFilename}",
     )
 
     message.attach(part)
@@ -238,16 +268,20 @@ if "email" in config['queries'][args.query].keys():
 
     context = ssl.create_default_context()
     try:
-        server = smtplib.SMTP(config['smtp_relay']['host'], config['smtp_relay']['port'])
+        server = smtplib.SMTP(config['smtp_relay']['host'], config['smtp_relay']['port'], timeout=5)
         server.starttls(context=context)  # Secure the connection
         server.login(config['smtp_relay']['username'], config['smtp_relay']['password'])
         server.sendmail(
             config['queries'][args.query]['email']['from'],
-            config['queries'][args.query]['email']['to'],
+            emailTo,
             text
         )
-    except Exception as e:
+    except Exception as err:
+        if err == "timeout":
+            print(f"Sorry the configured server ({config['smtp_relay']['host']}:{config['smtp_relay']['port']}) is not reachable or is unavailable")
+            exit(10)
         # Print any error messages to stdout
-        print(f"Error :{e}")
+        print(f"Error :'{err}'")
     finally:
-        server.quit()
+        if server:
+            server.quit()
